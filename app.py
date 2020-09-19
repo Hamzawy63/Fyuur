@@ -13,7 +13,7 @@ from logging import Formatter, FileHandler
 from flask_wtf import Form
 from forms import *
 from flask_migrate import Migrate
-
+from sqlalchemy import func
 #----------------------------------------------------------------------------#
 # App Config.
 #----------------------------------------------------------------------------#
@@ -22,8 +22,7 @@ app = Flask(__name__)
 moment = Moment(app)
 app.config.from_object('config')
 db = SQLAlchemy(app)
-migrate = Migrate(app, db)
-# TODO: connect to a local postgresql database
+# TODO: connect to a local postgresql database ==DONE==
 
 #----------------------------------------------------------------------------#
 # Models.
@@ -40,8 +39,16 @@ class Venue(db.Model):
     phone = db.Column(db.String(120))
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
+    website = db.Column(db.String)
+    seeking_talent = db.Column(db.Boolean())
+    seeking_talent_description = db.Column(db.String)
+    genres = db.Column(db.ARRAY(db.String))
+    # genres = db.relationship('Genres_of_Venues' ,cascade="all,delete" ,  backref = 'venue')
+    shows = db.relationship('Show' ,cascade="all,delete" ,  backref = 'venue')
+
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
+    migrate = Migrate(app, db)
 
 class Artist(db.Model):
     __tablename__ = 'Artist'
@@ -51,11 +58,44 @@ class Artist(db.Model):
     city = db.Column(db.String(120))
     state = db.Column(db.String(120))
     phone = db.Column(db.String(120))
-    genres = db.Column(db.String(120))
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
+    website = db.Column(db.String)
+    seeking_venue = db.Column(db.Boolean())
+    seeking_venue_description = db.Column(db.String)
+    genres = db.Column(db.ARRAY(db.String))
+    # genres = db.relationship('Genres_of_Artists' , cascade="all,delete"  ,  backref = 'artist')
+    shows = db.relationship('Show' ,cascade="all,delete"  ,  backref = 'artist')
 
-    # TODO: implement any missing fields, as a database migration using Flask-Migrate
+  
+class Show(db.Model):
+  __tablename__ = 'Show' 
+  id = db.Column(db.Integer, primary_key=True)
+  date = db.Column(db.DateTime())
+  artist_id = db.Column(db.Integer , db.ForeignKey('Artist.id'))
+  venue_id = db.Column(db.Integer, db.ForeignKey('Venue.id'))
+
+
+# class Genre(db.Model):
+#   __tablename__ = 'Genre'
+#   id = db.Column(db.Integer, primary_key=True)
+#   name = db.Column(db.String)
+#   artists = db.relationship('Genres_of_Artists' , backref = 'genre') # Do we need to cascasde ????
+#   venues = db.relationship('Genres_of_Venues' , backref = 'genre')
+  
+
+# class Genres_of_Artists(db.Model):
+#   __tablename__ = "Genres_of_Artists"
+#   id = db.Column(db.Integer, primary_key=True) 
+#   artist_id = db.Column(db.Integer, db.ForeignKey('Artist.id'))
+#   genre_id = db.Column(db.Integer,db.ForeignKey('Genre.id')) 
+
+
+# class Genres_of_Venues(db.Model):
+#   __tablename__ = "Genres_of_Venues"
+#   id = db.Column(db.Integer, primary_key=True)
+#   venue_id = db.Column(db.Integer,db.ForeignKey('Venue.id'))
+#   genre_id = db.Column(db.Integer,db.ForeignKey('Genre.id')) 
 
 # TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
 
@@ -89,27 +129,50 @@ def index():
 def venues():
   # TODO: replace with real venues data.
   #       num_shows should be aggregated based on number of upcoming shows per venue.
-  data=[{
-    "city": "San Francisco",
-    "state": "CA",
-    "venues": [{
-      "id": 1,
-      "name": "The Musical Hop",
-      "num_upcoming_shows": 0,
-    }, {
-      "id": 3,
-      "name": "Park Square Live Music & Coffee",
-      "num_upcoming_shows": 1,
-    }]
-  }, {
-    "city": "New York",
-    "state": "NY",
-    "venues": [{
-      "id": 2,
-      "name": "The Dueling Pianos Bar",
-      "num_upcoming_shows": 0,
-    }]
-  }]
+  # qq = Venue.query.with_entities(Venue.city).group_by(Venue.city).all()
+  # print(qq)
+  # data = [] 
+  current_date = datetime.now()
+  data = []
+  cities = Venue.query.with_entities(Venue.city, Venue.state).distinct(Venue.city).all()
+  for entry in cities: 
+      dic = {}
+      dic['city'] = entry[0] 
+      dic['state'] = entry[1]
+      dic['venues'] = [] 
+      query_venues =  Venue.query.with_entities(Venue.id , Venue.name).filter(Venue.city == dic['city']).all()
+      for venue_entry in query_venues:
+        venue_dic = {}
+        venue_dic['id'] = venue_entry[0]
+        venue_dic['name'] = venue_entry[1]
+        upcoming_shows = Show.query.filter(Show.venue_id == venue_dic['id'] , Show.date > current_date).count() # should it be >= ?? 
+        venue_dic['num_upcoming_shows'] = upcoming_shows
+        dic['venues'].append(venue_dic)
+      print(dic)
+      data.append(dic)
+      print(data[0])
+
+  # data=[{
+  #   "city": "San Francisco",
+  #   "state": "CA",
+  #   "venues": [{
+  #     "id": 1,
+  #     "name": "The Musical Hop",
+  #     "num_upcoming_shows": 0,
+  #   }, {
+  #     "id": 3,
+  #     "name": "Park Square Live Music & Coffee",
+  #     "num_upcoming_shows": 3,
+  #   }]
+  # }, {
+  #   "city": "New York",
+  #   "state": "NY",
+  #   "venues": [{
+  #     "id": 2,
+  #     "name": "The Dueling Pianos Bar",
+  #     "num_upcoming_shows": 0,
+  #   }]
+  # }]
   return render_template('pages/venues.html', areas=data);
 
 @app.route('/venues/search', methods=['POST'])
@@ -242,19 +305,20 @@ def delete_venue(venue_id):
 
 #  Artists
 #  ----------------------------------------------------------------
-@app.route('/artists')
+@app.route('/artists') #Done 
 def artists():
   # TODO: replace with real data returned from querying the database
-  data=[{
-    "id": 4,
-    "name": "Guns N Petals",
-  }, {
-    "id": 5,
-    "name": "Matt Quevedo",
-  }, {
-    "id": 6,
-    "name": "The Wild Sax Band",
-  }]
+  data = Artist.query.with_entities(Artist.id , Artist.name) 
+  # data=[{
+  #   "id": 4,
+  #   "name": "Guns N Petals",
+  # }, {
+  #   "id": 5,
+  #   "name": "Matt Quevedo",
+  # }, {
+  #   "id": 6,
+  #   "name": "The Wild Sax Band",
+  # }]
   return render_template('pages/artists.html', artists=data)
 
 @app.route('/artists/search', methods=['POST'])
@@ -276,6 +340,10 @@ def search_artists():
 def show_artist(artist_id):
   # shows the venue page with the given venue_id
   # TODO: replace with real venue data from the venues table, using venue_id
+  #data = Artist.query.filter_by(id = artist_id)
+  #current_date = '2034-01-20'
+  #past_shows = Show.query.with_entities(Show.venue_id , Show.venue.).filter(Show.date < current_date) 
+  #shows = 
   data1={
     "id": 4,
     "name": "Guns N Petals",
