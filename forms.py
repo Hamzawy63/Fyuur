@@ -108,7 +108,7 @@ def validate_city():
 
     def _validate_city(form, field):
         s = field.data
-        if not s.isalpha():
+        if not all(x.isalpha() or x.isspace() for x in s):
             raise ValidationError(message)
 
     return _validate_city
