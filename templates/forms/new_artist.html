@@ -7,6 +7,13 @@
       <div class="form-group">
         <label for="name">Name</label>
         {{ form.name(class_ = 'form-control', autofocus = true) }}
+        {% if form.name.errors %}
+          <span class = "error">
+            {% for error in form.name.errors %}
+              <span>{{ error }}</span>
+            {% endfor %}
+          </span>
+       {% endif %}
       </div>
       <div class="form-group">
           <label>City & State</label>
@@ -18,21 +25,44 @@
               {{ form.state(class_ = 'form-control', placeholder='State', autofocus = true) }}
             </div>
           </div>
+          {% if form.city.errors %}
+            <span class = "error">
+              {% for error in form.city.errors %}
+                <span>{{ error }}</span>
+              {% endfor %}
+            </span>
+         {% endif %}
       </div>
       <div class="form-group">
           <label for="phone">Phone</label>
+          <!-- {{form.phone.label}} -->
           {{ form.phone(class_ = 'form-control', placeholder='xxx-xxx-xxxx', autofocus = true) }}
+          {% if form.phone.errors %}
+            <span class = "error">
+              {% for error in form.phone.errors %}
+                <span>{{ error }}</span>
+              {% endfor %}
+            </span>
+         {% endif %}
         </div>
       <div class="form-group">
         <label for="genres">Genres</label>
         <small>Ctrl+Click to select multiple</small>
-        {{ form.genres(class_ = 'form-control', placeholder='Genres, separated by commas', id='genres', autofocus = true) }}
+        {{ form.genres(class_ = 'form-control', placeholder='Genres, separated by commas', autofocus = true) }}
       </div>
       <div class="form-group">
-          <label for="genres">Facebook Link</label>
+          <label for="facebook_link">Facebook Link</label>
           {{ form.facebook_link(class_ = 'form-control', placeholder='http://', autofocus = true) }}
+                {% if form.facebook_link.errors %}
+                  <span class = "error">
+                    {% for error in form.facebook_link.errors %}
+                      <span>{{ error }}</span>
+                    {% endfor %}
+                  </span>
+                {% endif %}
         </div>
-      <input type="submit" value="Create Artist" class="btn btn-primary btn-lg btn-block">
+      <input type="submit" value="Create Artist " class="btn btn-primary btn-lg btn-block">
+      
     </form>
   </div>
 {% endblock %}
