@@ -15,6 +15,7 @@ from flask_wtf import Form
 from forms import *
 from flask_migrate import Migrate
 from sqlalchemy import func
+from flask_wtf.csrf import CsrfProtect # to avoid the validation error :) 
 
 #----------------------------------------------------------------------------#
 # App Config.
@@ -24,6 +25,7 @@ app = Flask(__name__)
 moment = Moment(app)
 app.config.from_object('config')
 db = SQLAlchemy(app)
+csrf = CsrfProtect()  
 # TODO: connect to a local postgresql database ==DONE==
 
 #----------------------------------------------------------------------------#
@@ -68,7 +70,6 @@ class Artist(db.Model):
     genres = db.Column(db.ARRAY(db.String))
     # genres = db.relationship('Genres_of_Artists' , cascade="all,delete"  ,  backref = 'artist')
     shows = db.relationship('Show' ,cascade="all,delete"  ,  backref = 'artist')
-
   
 class Show(db.Model):
   __tablename__ = 'Show' 
@@ -77,9 +78,6 @@ class Show(db.Model):
   artist_id = db.Column(db.Integer , db.ForeignKey('Artist.id'))
   venue_id = db.Column(db.Integer, db.ForeignKey('Venue.id'))
 
-
-
-# TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
 
 #----------------------------------------------------------------------------#
 # Filters.
@@ -210,6 +208,11 @@ def create_venue_form():
 
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
+    form = VenueForm(request.form)
+    if(not form.validate()):
+      print("Bad Input ")
+      print(form.errors)
+      return render_template('forms/new_venue.html' , form = form )
     try:
       print(request.form)
       name = request.form['name']
@@ -369,8 +372,13 @@ def edit_artist(artist_id):
 
 @app.route('/artists/<int:artist_id>/edit', methods=['POST'])
 def edit_artist_submission(artist_id):
+  artist = Artist.query.filter(Artist.id == artist_id).first()
+  form = ArtistForm(request.form)
+  if(not form.validate()):
+    print("Bad Input ")
+    print(form.errors)
+    return render_template('forms/edit_artist.html', form=form, artist=artist)
   try:
-    artist = Artist.query.filter(Artist.id == artist_id).first()
     artist.name = request.form['name']
     artist.city = request.form['city']
     artist.state = request.form['state']
@@ -392,7 +400,7 @@ def edit_venue(venue_id):
   form = VenueForm()
   v = Venue.query.filter_by(id = venue_id).first()
   if(v == None):
-    return render_template('errors/404.html')
+    return render_template('errors/404.html')  
   venue={
     "id": v.id,
     "name": v.name,
@@ -411,20 +419,32 @@ def edit_venue(venue_id):
 
 @app.route('/venues/<int:venue_id>/edit', methods=['POST'])
 def edit_venue_submission(venue_id):
-  # TODO: take values from the form submitted, and update existing
-  # venue record with ID <venue_id> using the new attributes
   venue = Venue.query.filter_by(id = venue_id).first()
-  venue.name = request.form['name']
-  venue.genres = request.form['genres']
-  venue.address = request.form['address']
-  venue.city = request.form['city']
-  venue.state= request.form['state']
-  venue.phone = request.form['phone']
-  venue.website = request.form['website'] 
-  venue.facebook_link = request.form['facebook_link']
-  venue.seeking_talent = request.form['seeking_talent']
-  venue.seeking_talent_description = request.form['seeking_description']
-  venue.image_link = request.form['imgage_link']
+  form = VenueForm(request.form)
+  if(not form.validate()):
+    print("Bad Input ")
+    print(form.errors)
+    return render_template('forms/edit_venue.html', form=form, venue=venue)
+  try:
+      venue.name = request.form['name']
+      venue.genres = request.form['genres']
+      venue.address = request.form['address']
+      venue.city = request.form['city']
+      venue.state= request.form['state']
+      venue.facebook_link = request.form['facebook_link']
+      venue.phone = request.form['phone']
+      # venue.website = request.form['website'] 
+      # venue.seeking_talent = request.form['seeking_talent']
+      # venue.seeking_talent_description = request.form['seeking_description']
+      # venue.image_link = request.form['imgage_link']
+      db.session.commit()
+      flash('Venue was successfully edited')
+  except:
+      flash('Sorry , Something went wrong while Editing the artist')
+      db.session.rollback()
+  finally:
+      db.session.close()
+
   return redirect(url_for('show_venue', venue_id=venue_id))
 
 #  Create Artist
@@ -436,28 +456,21 @@ def create_artist_form():
   return render_template('forms/new_artist.html', form=form)
 
 @app.route('/artists/create', methods=['POST'])
-def create_artist_submission():
-  # called upon submitting the new artist listing form
-  # TODO: insert form data as a new Venue record in the db, instead
-  # TODO: modify data to be the data object returned from db insertion
-
-  # on successful db insert, flash success
-  # TODO: on unsuccessful db insert, flash an error instead.
-  # e.g., flash('An error occurred. Artist ' + data.name + ' could not be listed.')
-
+def create_artist_submission():  
+  form = ArtistForm(request.form)
+  if(not form.validate()):
+    print("Bad Input ")
+    print(form.errors)
+    return render_template('forms/new_artist.html' , form = form )
   try:
-    print("here is the request -_- ")
-    print(request.form)
     name = request.form['name']
     city = request.form['city']
     state = request.form['state']
     phone = request.form['phone']
     genres = request.form.getlist('genres')
-    # image_link = request.form['image_link']
     facebook_link = request.form['facebook_link']
     id = db.session.query(func.max(Artist.id)).scalar() + 1 #seems that I can't reset the counter for the auto increment 
     artist = Artist(id = id , seeking_venue = False , name = name , city = city , state = state , phone= phone , facebook_link = facebook_link)
-    print("here is the artist\n " , artist)
     db.session.add(artist)
     db.session.commit()
     flash('Artist ' + request.form['name'] + ' was successfully listed!')
@@ -469,6 +482,8 @@ def create_artist_submission():
     db.session.close()
 
   return render_template('pages/home.html')
+
+
 
 
 #  Shows
@@ -553,7 +568,8 @@ if not app.debug:
 
 # Default port:
 if __name__ == '__main__':
-    app.run(host= '127.0.0.1')
+    app.run(host= '0.0.0.0')
+    csrf.init_app(app)
 
 # Or specify port manually:
 
